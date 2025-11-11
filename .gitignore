@@ -130,3 +130,11 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
+# VSCode
+*.code-workspace
+.vscode/
+
+# README files
+*.md 
+!README.md
+!TESTING.md

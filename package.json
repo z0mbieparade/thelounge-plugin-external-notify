@@ -1,0 +1,49 @@
+{
+  "name": "thelounge-plugin-external-notify",
+  "version": "1.0.0",
+  "description": "External notification plugin for TheLounge IRC client - supports Pushover and other notification services",
+  "main": "index.js",
+  "keywords": [
+    "thelounge",
+    "irc",
+    "thelounge-plugin",
+    "notifications",
+    "pushover",
+    "external-notify"
+  ],
+  "author": "z0mbi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://git.z0m.bi/z0mbi/thelounge-plugin-external-notify.git"
+  },
+  "homepage": "https://git.z0m.bi/z0mbi/thelounge-plugin-external-notify#readme",
+  "bugs": {
+    "url": "https://git.z0m.bi/z0mbi/thelounge-plugin-external-notify/issues"
+  },
+  "thelounge": {
+    "name": "External Notify",
+    "type": "plugin",
+    "supports": ">=4.0.0"
+  },
+  "dependencies": {
+    "pushover-notifications": "^1.2.3"
+  },
+  "peerDependencies": {
+    "thelounge": ">=4.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {
+    "mocha": "^10.0.0",
+    "chai": "^4.3.0"
+  },
+  "scripts": {
+    "test": "mocha test/*.test.js",
+    "test:basic": "mocha test/simple.test.js",
+    "test:unit": "mocha test/config-manager.test.js test/notification-manager.test.js test/pushover.test.js",
+    "test:integration": "mocha test/integration.test.js",
+    "verify": "node verify-plugin.js"
+  }
+}

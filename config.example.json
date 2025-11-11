@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "services": {
+    "pushover": {
+      "userKey": "your-30-character-user-key-here",
+      "apiToken": "your-30-character-api-token-here",
+      "priority": 0,
+      "sound": "pushover"
+    }
+  },
+  "filters": {
+    "onlyWhenAway": true,
+    "highlights": true,
+    "keywords": [],
+    "channels": {
+      "whitelist": [],
+      "blacklist": []
+    }
+  }
+}
