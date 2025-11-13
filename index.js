@@ -1,42 +1,25 @@
 "use strict";
 
-const fs = require("fs");
 const ConfigManager = require("./lib/config-manager");
 const NotificationManager = require("./lib/notification-manager");
-const commands = require("./lib/commands");
+const { F } = require("./lib/format");
+const sendMessage = require("./lib/message");
 
 // Plugin state management - tracks active notification sessions
 // Key: `${clientId}-${networkId}`
 const pluginState = new Map();
 
 let apiInstance = null;
+
+// Storage directory for plugin configs
 let storageDir = null;
 
 /**
- * Main plugin entry point
- * Called when TheLounge server starts
+ * Helper: Get logger instance (uses TheLounge logger if available, falls back to console)
  */
-module.exports = {
-	onServerStart(api) {
-		apiInstance = api;
-
-		// Get persistent storage directory for plugin configuration
-		storageDir = api.Config.getPersistentStorageDir("thelounge-plugin-external-notify");
-
-		// Ensure storage directory exists
-		if (!fs.existsSync(storageDir)) {
-			fs.mkdirSync(storageDir, { recursive: true });
-		}
-
-		api.Logger.info("External Notify plugin loaded");
-		api.Logger.info(`Configuration directory: ${storageDir}`);
-
-		// Register the /notify command
-		api.Commands.add("notify", commands.notifyCommand);
-
-		api.Logger.info("Use /notify to configure external notifications");
-	}
-};
+function getLogger() {
+	return apiInstance ? apiInstance.Logger : console;
+}
 
 /**
  * Get or create plugin state for a client-network pair
@@ -45,41 +28,110 @@ function getPluginState(client, network) {
 	const key = `${client.id}-${network.uuid}`;
 
 	if (!pluginState.has(key)) {
+		const configManager = new ConfigManager(client, storageDir);
+		const config = configManager.load();
+
 		pluginState.set(key, {
-			enabled: false,
+			enabled: config.enabled || false,
 			client: client,
 			network: network,
-			configManager: new ConfigManager(storageDir, client.name),
+			configManager: configManager,
 			notificationManager: null, // Created when enabled
-			listenersSetup: false
+			listenersSetup: false,
+			virtualChannel: null // Virtual channel for settings/status
 		});
+
+		// If enabled in config, initialize notification manager
+		if (config.enabled && config.services && Object.keys(config.services).length > 0) {
+			const state = pluginState.get(key);
+			state.notificationManager = new NotificationManager(
+				config,
+				getLogger()
+			);
+			setupMessageMonitoring(state);
+		}
 	}
 
 	return pluginState.get(key);
 }
 
 /**
- * Setup IRC event listeners for monitoring messages
+ * Get or create the virtual channel for notifications UI
+ */
+function getOrCreateVirtualChannel(client, network) {
+	const state = getPluginState(client, network);
+
+	// Check if virtual channel already exists
+	if (state.virtualChannel) {
+		return state.virtualChannel;
+	}
+
+	// Load config to get channel name
+	const config = state.configManager.load();
+	const channelName = config.channelName || "external-notify";
+
+	// Check if channel already exists in network
+	let virtualChannel = network.channels.find(chan =>
+		chan.name === channelName && chan.topic === "External Notify - Settings & Status"
+	);
+
+	if (!virtualChannel) {
+		// Create new virtual channel
+		virtualChannel = client.createChannel({
+			name: channelName,
+			type: "channel",  // Use channel type so messages display properly
+			topic: "External Notify - Settings & Status"
+		});
+
+		// Add to channels array (our export hook will filter it out when saving)
+		network.channels.push(virtualChannel);
+		const channelIndex = network.channels.length - 1;
+
+		sendMessage(client, network, F.HEADER("External Notify Plugin"));
+
+		// Send welcome message and help text
+		const commands = require("./lib/commands");
+		commands.handleHelp(client, network);
+
+		// Notify client about new channel
+		if (client.manager && client.manager.sockets) {
+			client.manager.sockets.to(client.id).emit("join", {
+				network: network.uuid,
+				chan: virtualChannel.getFilteredClone(client),
+				index: channelIndex
+			});
+		}
+	}
+
+	// Store in state
+	state.virtualChannel = virtualChannel;
+
+	return virtualChannel;
+}
+
+/**
+ * Setup message monitoring by wrapping channel pushMessage methods
+ * This gives us access to messages after TheLounge has determined if they're highlights
  */
 function setupMessageMonitoring(state) {
 	if (state.listenersSetup) {
 		return;
 	}
 
-	const { network, client, notificationManager } = state;
+	const { network, client } = state;
 
-	// Hook into IRC message events
-	network.irc.on("privmsg", function(event) {
-		handleIrcMessage(state, "privmsg", event);
-	});
+	// Wrap pushMessage for all channels in this network
+	for (const channel of network.channels) {
+		wrapChannelPushMessage(channel, state);
+	}
 
-	network.irc.on("action", function(event) {
-		handleIrcMessage(state, "action", event);
-	});
-
-	network.irc.on("notice", function(event) {
-		handleIrcMessage(state, "notice", event);
-	});
+	// Also watch for new channels being added
+	const originalAddChannel = network.addChannel.bind(network);
+	network.addChannel = function(channel) {
+		const result = originalAddChannel(channel);
+		wrapChannelPushMessage(channel, state);
+		return result;
+	};
 
 	state.listenersSetup = true;
 
@@ -89,32 +141,91 @@ function setupMessageMonitoring(state) {
 }
 
 /**
- * Handle incoming IRC messages and determine if notification should be sent
+ * Wrap a channel's pushMessage method to intercept messages
  */
-function handleIrcMessage(state, type, event) {
+function wrapChannelPushMessage(channel, state) {
+	// Skip if already wrapped
+	if (channel._externalNotifyWrapped) {
+		return;
+	}
+
+	const originalPushMessage = channel.pushMessage.bind(channel);
+
+	channel.pushMessage = function(client, msg, increasesUnread) {
+		// Call original first
+		const result = originalPushMessage(client, msg, increasesUnread);
+
+		// Then check if we should send notification
+		handleTheloungeMessage(state, channel, msg);
+
+		return result;
+	};
+
+	channel._externalNotifyWrapped = true;
+}
+
+/**
+ * Handle TheLounge's processed messages
+ * At this point, msg.highlight is already set based on TheLounge's highlight detection
+ */
+function handleTheloungeMessage(state, channel, msg) {
 	if (!state.enabled || !state.notificationManager) {
 		return;
 	}
 
 	const { client, network } = state;
 
-	// Build message data
+	// Skip messages from self
+	if (msg.self) {
+		return;
+	}
+
+	// Only process MESSAGE, ACTION, and NOTICE types
+	if (!["message", "action", "notice"].includes(msg.type)) {
+		return;
+	}
+
+	// Build message data with TheLounge's processed information
 	const messageData = {
-		type: type,
+		type: msg.type,
 		network: network.name,
-		channel: event.target,
-		nick: event.nick,
-		message: event.message,
-		timestamp: new Date()
+		channel: channel.name,
+		nick: msg.from.nick || msg.from,
+		message: msg.text,
+		timestamp: msg.time,
+		highlight: msg.highlight || false // Use TheLounge's highlight detection
 	};
 
 	// Let notification manager decide if this should trigger a notification
 	state.notificationManager.processMessage(messageData, client)
+		.then(result => {
+			if (result && result.services.length > 0) {
+				// Log notification to virtual channel
+				logNotificationToChannel(state, result);
+			}
+		})
 		.catch(err => {
 			if (apiInstance) {
 				apiInstance.Logger.error(`Error processing notification: ${err.message}`);
 			}
 		});
+}
+
+/**
+ * Log notification activity to the virtual channel
+ */
+function logNotificationToChannel(state, result) {
+	try {
+		const time = result.notification.timestamp.toLocaleTimeString();
+		const services = result.services.join(", ");
+		const text = `[${time}] Notification sent via ${services}: ${result.notification.title} - ${result.notification.message}`;
+
+		sendMessage(state.client, state.network, text);
+	} catch (err) {
+		if (apiInstance) {
+			apiInstance.Logger.error(`Error logging notification to channel: ${err.message}`);
+		}
+	}
 }
 
 /**
@@ -136,13 +247,17 @@ function enableNotifications(client, network) {
 	// Create notification manager
 	state.notificationManager = new NotificationManager(
 		config,
-		apiInstance ? apiInstance.Logger : console
+		getLogger()
 	);
 
 	// Setup message monitoring
 	setupMessageMonitoring(state);
 
 	state.enabled = true;
+
+	// Save enabled state to config
+	config.enabled = true;
+	state.configManager.save(config);
 
 	return {
 		success: true,
@@ -156,6 +271,11 @@ function enableNotifications(client, network) {
 function disableNotifications(client, network) {
 	const state = getPluginState(client, network);
 	state.enabled = false;
+
+	// Save disabled state to config
+	const config = state.configManager.load();
+	config.enabled = false;
+	state.configManager.save(config);
 
 	return {
 		success: true,
@@ -176,10 +296,30 @@ function getStatus(client, network) {
 	};
 }
 
-// Export utility functions for use by commands module
-module.exports.getPluginState = getPluginState;
-module.exports.enableNotifications = enableNotifications;
-module.exports.disableNotifications = disableNotifications;
-module.exports.getStatus = getStatus;
-module.exports.getStorageDir = () => storageDir;
-module.exports.getApi = () => apiInstance;
+/**
+ * Main plugin entry point
+ * Called when TheLounge server starts
+ */
+module.exports = {
+	onServerStart(api) {
+		apiInstance = api;
+
+		// Get plugin storage directory
+		storageDir = api.Config.getPersistentStorageDir();
+		api.Logger.info(`External Notify plugin loaded, using storage: ${storageDir}`);
+
+		// Register the /notify command
+		const commands = require("./lib/commands");
+		api.Commands.add("notify", commands.notifyCommand);
+
+		api.Logger.info("Use /notify to configure external notifications");
+	},
+
+	// Export utility functions for use by commands module
+	getPluginState,
+	getOrCreateVirtualChannel,
+	enableNotifications,
+	disableNotifications,
+	getStatus,
+	getApi: () => apiInstance
+};

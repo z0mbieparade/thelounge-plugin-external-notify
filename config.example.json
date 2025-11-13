@@ -1,5 +1,6 @@
 {
   "enabled": true,
+  "channelName": "external-notify",
   "services": {
     "pushover": {
       "userKey": "your-30-character-user-key-here",
@@ -10,11 +11,6 @@
   },
   "filters": {
     "onlyWhenAway": true,
-    "highlights": true,
-    "keywords": [],
-    "channels": {
-      "whitelist": [],
-      "blacklist": []
-    }
+    "highlights": true
   }
 }

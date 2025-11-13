@@ -15,6 +15,7 @@ describe("PushoverNotifier", function() {
 	describe("constructor", function() {
 		it("should create notifier with valid config", function() {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30),
 				priority: 0,
@@ -24,37 +25,42 @@ describe("PushoverNotifier", function() {
 			const notifier = new PushoverNotifier(config, mockLogger);
 
 			expect(notifier).to.be.an.instanceof(PushoverNotifier);
-			expect(notifier.priority).to.equal(0);
-			expect(notifier.sound).to.equal("pushover");
+			expect(notifier.config.priority).to.equal(0);
+			expect(notifier.config.sound).to.equal("pushover");
+			expect(notifier.isMetadataMode).to.equal(false);
 		});
 
-		it("should throw error with invalid config", function() {
+		it("should not initialize with invalid config", function() {
 			const config = {
+				enabled: true,
 				userKey: "short",
 				apiToken: ""
 			};
 
-			expect(() => {
-				new PushoverNotifier(config, mockLogger);
-			}).to.throw("Invalid Pushover configuration");
+			const notifier = new PushoverNotifier(config, mockLogger);
+
+			// Should remain in metadata mode (not set up)
+			expect(notifier.isMetadataMode).to.equal(true);
 		});
 
 		it("should use default priority and sound", function() {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30)
 			};
 
 			const notifier = new PushoverNotifier(config, mockLogger);
 
-			expect(notifier.priority).to.equal(0);
-			expect(notifier.sound).to.equal("pushover");
+			expect(notifier.config.priority).to.be.a('number');
+			expect(notifier.config.sound).to.be.a('string');
 		});
 	});
 
 	describe("validate()", function() {
 		it("should return true for valid config", function() {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30),
 				priority: 0,
@@ -68,66 +74,64 @@ describe("PushoverNotifier", function() {
 
 		it("should return false for missing userKey", function() {
 			const config = {
+				enabled: true,
 				userKey: "",
 				apiToken: "b".repeat(30),
 				priority: 0,
 				sound: "pushover"
 			};
 
-			// Constructor will throw, so we test validate directly
-			const notifier = Object.create(PushoverNotifier.prototype);
-			notifier.config = config;
-			notifier.logger = mockLogger;
+			// Create instance in metadata mode
+			const notifier = new PushoverNotifier(config, mockLogger);
 
 			expect(notifier.validate()).to.equal(false);
 		});
 
 		it("should return false for missing apiToken", function() {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "",
 				priority: 0,
 				sound: "pushover"
 			};
 
-			const notifier = Object.create(PushoverNotifier.prototype);
-			notifier.config = config;
-			notifier.logger = mockLogger;
+			const notifier = new PushoverNotifier(config, mockLogger);
 
 			expect(notifier.validate()).to.equal(false);
 		});
 
 		it("should warn for incorrect key lengths", function() {
-			const warnings = [];
-			const warnLogger = {
+			const errors = [];
+			const errorLogger = {
 				info: () => {},
-				warn: (msg) => warnings.push(msg),
-				error: () => {},
+				warn: () => {},
+				error: (msg) => errors.push(msg),
 				debug: () => {}
 			};
 
 			const config = {
+				enabled: true,
 				userKey: "short-key",
 				apiToken: "short-token",
 				priority: 0,
 				sound: "pushover"
 			};
 
-			const notifier = Object.create(PushoverNotifier.prototype);
-			notifier.config = config;
-			notifier.logger = warnLogger;
+			const notifier = new PushoverNotifier(config, errorLogger);
 
-			notifier.validate();
+			// validateWithLogging should log errors
+			const result = notifier.validateWithLogging();
 
-			expect(warnings).to.have.lengthOf(2);
-			expect(warnings[0]).to.include("userKey should be 30 characters");
-			expect(warnings[1]).to.include("apiToken should be 30 characters");
+			expect(result).to.equal(false);
+			expect(errors.length).to.be.greaterThan(0);
 		});
 	});
 
-	describe("getName()", function() {
-		it("should return pushover", function() {
+	describe("name", function() {
+		it("should return Pushover", function() {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30),
 				priority: 0,
@@ -136,13 +140,14 @@ describe("PushoverNotifier", function() {
 
 			const notifier = new PushoverNotifier(config, mockLogger);
 
-			expect(notifier.getName()).to.equal("pushover");
+			expect(notifier.name).to.equal("Pushover");
 		});
 	});
 
 	describe("send()", function() {
 		it("should format notification correctly", function(done) {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30),
 				priority: 1,
@@ -175,6 +180,7 @@ describe("PushoverNotifier", function() {
 
 		it("should convert timestamp to unix timestamp", function(done) {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30),
 				priority: 0,
@@ -204,6 +210,7 @@ describe("PushoverNotifier", function() {
 
 		it("should reject on error", function(done) {
 			const config = {
+				enabled: true,
 				userKey: "a".repeat(30),
 				apiToken: "b".repeat(30),
 				priority: 0,

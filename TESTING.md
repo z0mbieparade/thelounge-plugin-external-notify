@@ -15,8 +15,8 @@ This runs all unit and integration tests covering:
 - ✅ Notification routing and filtering
 - ✅ Pushover integration
 - ✅ Message deduplication
-- ✅ Channel filtering
-- ✅ Keyword matching
+- ✅ Highlight detection
+- ✅ Service-agnostic design
 
 ### Basic Structure Tests
 Run the basic structure validation tests:
@@ -118,13 +118,11 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ Configuration file path is shown
    - ✅ Example configuration is provided
 
-3. Create configuration file at the specified path:
-   ```bash
-   mkdir -p ~/.thelounge/packages/node_modules/thelounge-plugin-external-notify/storage
-   nano ~/.thelounge/packages/node_modules/thelounge-plugin-external-notify/storage/your-username-config.json
+3. Configure using interactive commands:
    ```
-
-4. Add your Pushover credentials (see config.example.json)
+   /notify config pushover userKey YOUR_30_CHAR_USER_KEY
+   /notify config pushover apiToken YOUR_30_CHAR_API_TOKEN
+   ```
 
 #### Test 4: Status Command
 **Expected Result**: Status shows current configuration
@@ -137,7 +135,7 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ Shows enabled/disabled state
    - ✅ Lists configured services (Pushover)
    - ✅ Shows filter settings
-   - ✅ Displays keywords if configured
+   - ✅ Displays validation status
 
 #### Test 5: Enable Notifications
 **Expected Result**: Notifications can be enabled
@@ -151,7 +149,7 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ No error about missing configuration
 3. If errors occur:
    - ✅ Check configuration file exists
-   - ✅ Verify Pushover credentials are correct
+   - ✅ Verify Pushover credentials are correct (30 characters each)
 
 #### Test 6: Test Notification
 **Expected Result**: Test notification is received on your device
@@ -177,34 +175,27 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ Title shows "network - #channel"
    - ✅ Message shows "<otheruser> hey yourusername, check this out"
 
-#### Test 8: Keyword Matching
-**Expected Result**: Keywords trigger notifications
+#### Test 8: Away Status Filtering
+**Expected Result**: onlyWhenAway setting respected
 
-1. Add a keyword:
+1. Set yourself as away in IRC:
    ```
-   /notify add-keyword urgent
+   /away Testing notifications
    ```
-2. Have someone post a message with that keyword:
-   ```
-   <otheruser> urgent: server down
-   ```
-3. Check your device:
-   - ✅ Notification received
-   - ✅ Message contains the keyword
-
-#### Test 9: Keyword Removal
-**Expected Result**: Removed keywords don't trigger notifications
-
-1. Remove the keyword:
-   ```
-   /notify remove-keyword urgent
-   ```
-2. Post a message with that keyword
+2. Have someone mention you
 3. Verify:
-   - ✅ No notification received
-   - ✅ Keyword removed from status
+   - ✅ Notification received when away and onlyWhenAway is true
 
-#### Test 10: Disable Notifications
+4. Return from away:
+   ```
+   /away
+   ```
+5. Have someone mention you
+6. Verify:
+   - ✅ Notification not received when present and onlyWhenAway is true
+   - ✅ Notification received when present and onlyWhenAway is false
+
+#### Test 9: Disable Notifications
 **Expected Result**: Notifications stop when disabled
 
 1. Type:
@@ -216,30 +207,7 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ No notification received
    - ✅ Status shows disabled
 
-#### Test 11: Multiple Keywords
-**Expected Result**: Multiple keywords all work
-
-1. Add multiple keywords:
-   ```
-   /notify add-keyword deploy
-   /notify add-keyword production
-   /notify add-keyword emergency
-   ```
-2. Post messages with each keyword
-3. Verify:
-   - ✅ Each keyword triggers a notification
-   - ✅ Case-insensitive matching works
-
-#### Test 12: Channel Filtering
-**Expected Result**: Whitelist/blacklist work (when implemented)
-
-1. Configure channel filters in config file
-2. Test messages in different channels
-3. Verify:
-   - ✅ Only whitelisted channels send notifications
-   - ✅ Blacklisted channels never send notifications
-
-#### Test 13: Deduplication
+#### Test 10: Deduplication
 **Expected Result**: Duplicate messages not sent twice
 
 1. Enable notifications
@@ -248,7 +216,7 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ Only one notification received
    - ✅ No duplicate notifications within 60 seconds
 
-#### Test 14: Multiple Networks
+#### Test 11: Multiple Networks
 **Expected Result**: Each network independently configured
 
 1. Connect to multiple IRC networks
@@ -258,10 +226,10 @@ Since this plugin integrates with external services, manual testing is essential
    - ✅ Enable/disable works independently
    - ✅ Notifications show correct network name
 
-#### Test 15: Configuration Persistence
+#### Test 12: Configuration Persistence
 **Expected Result**: Settings survive restart
 
-1. Configure notifications with keywords and settings
+1. Configure notifications with specific settings
 2. Restart TheLounge:
    ```bash
    thelounge restart
@@ -271,9 +239,34 @@ Since this plugin integrates with external services, manual testing is essential
    /notify status
    ```
 4. Verify:
-   - ✅ All keywords still present
    - ✅ Configuration unchanged
    - ✅ Enabled state preserved
+   - ✅ Service credentials intact
+
+#### Test 13: Interactive Configuration
+**Expected Result**: Config commands work correctly
+
+1. Test filter configuration:
+   ```
+   /notify config filter onlyWhenAway false
+   /notify config filter highlights true
+   ```
+2. Test Pushover settings:
+   ```
+   /notify config pushover priority 1
+   /notify config pushover sound cosmic
+   ```
+3. Verify with `/notify status` that settings were applied
+
+#### Test 14: TheLounge Highlight Integration
+**Expected Result**: Plugin respects TheLounge highlight settings
+
+1. Go to TheLounge Settings > Highlights
+2. Add custom highlight words (e.g., "urgent", "deploy")
+3. Have someone use those words in a message
+4. Verify:
+   - ✅ Notifications triggered for custom highlights
+   - ✅ Plugin uses TheLounge's highlight detection
 
 ### Troubleshooting
 
@@ -310,25 +303,30 @@ Since this plugin integrates with external services, manual testing is essential
 3. If test works but real notifications don't:
    - ✅ Check filters in `/notify status`
    - ✅ Verify highlights are enabled
-   - ✅ Try adding broad keywords
    - ✅ Check if onlyWhenAway is blocking notifications
+   - ✅ Make sure you're being mentioned/highlighted
 
 #### Test Notification Works But Not Real Messages
 1. Check filter settings:
    ```
    /notify status
    ```
-2. Verify you're actually being mentioned or keywords match
+2. Verify you're actually being highlighted (check TheLounge's built-in highlight detection)
 3. Try disabling onlyWhenAway filter:
-   - Edit config file
-   - Set `"onlyWhenAway": false`
-4. Check channel whitelist/blacklist
+   ```
+   /notify config filter onlyWhenAway false
+   ```
+4. Check TheLounge Settings > Highlights for your custom highlight words
 
 #### Notifications Too Frequent
-1. Enable onlyWhenAway filter
-2. Add channel blacklist for noisy channels
-3. Use whitelist to only monitor important channels
-4. Remove broad keywords
+1. Enable onlyWhenAway filter:
+   ```
+   /notify config filter onlyWhenAway true
+   ```
+2. Disable notifications when actively using IRC:
+   ```
+   /notify disable
+   ```
 
 ### Performance Testing
 
@@ -340,6 +338,7 @@ For high-traffic scenarios:
    - ✅ No memory leaks over time
    - ✅ Proper message ordering
    - ✅ Deduplication working correctly
+   - ✅ No duplicate API calls
 
 ### Expected Test Results Summary
 
@@ -352,14 +351,13 @@ For high-traffic scenarios:
 | Enable Notifications | ✅ Pass | Enables successfully |
 | Test Notification | ✅ Pass | Received on device |
 | Highlight Detection | ✅ Pass | Mentions trigger notifications |
-| Keyword Matching | ✅ Pass | Keywords trigger notifications |
-| Keyword Removal | ✅ Pass | Removed keywords don't trigger |
+| Away Status Filtering | ✅ Pass | onlyWhenAway respected |
 | Disable Notifications | ✅ Pass | Stops sending notifications |
-| Multiple Keywords | ✅ Pass | All keywords work |
-| Channel Filtering | ⚠️ Partial | Basic implementation |
 | Deduplication | ✅ Pass | No duplicate notifications |
 | Multiple Networks | ✅ Pass | Independent per network |
 | Config Persistence | ✅ Pass | Survives restart |
+| Interactive Config | ✅ Pass | Commands modify settings |
+| Highlight Integration | ✅ Pass | Uses TheLounge highlights |
 
 ### Reporting Issues
 
@@ -393,6 +391,7 @@ When testing with real credentials:
 2. Messages with special characters
 3. Unicode and emoji in messages
 4. Messages with URLs
+5. Private messages vs channel messages
 
 ## Continuous Integration
 
@@ -413,3 +412,20 @@ node verify-plugin.js
 ```
 
 All tests must pass before deployment.
+
+## Test Coverage
+
+Current test coverage includes:
+
+- **Configuration Management**: Load, save, validate, merge with defaults
+- **Notification Manager**: Message filtering, deduplication, formatting
+- **Pushover Notifier**: API integration, validation, defaults
+- **Integration**: End-to-end notification flow
+- **Service-Agnostic Design**: Generic validation without service-specific code
+
+See individual test files for detailed test cases:
+- `test/config-manager.test.js`
+- `test/notification-manager.test.js`
+- `test/pushover.test.js`
+- `test/integration.test.js`
+- `test/simple.test.js`

@@ -1,14 +1,16 @@
 # TheLounge External Notify Plugin
 
-Send IRC notifications to external services like Pushover when you're away or mentioned.
+Send IRC notifications to external services like Pushover when you're highlighted in IRC.
 
 ## Features
 
-- Get notifications on your phone or other devices when mentioned in IRC
-- Support for highlights, keywords, and channel filtering
+- Get notifications on your phone or other devices when highlighted/mentioned in IRC
 - Currently supports Pushover (more services coming soon)
 - Smart filtering to avoid notification spam
+  - Only notify when away (optional)
+  - Deduplication to prevent spam
 - Easy command-based configuration
+- Service-agnostic architecture for easy expansion
 
 ## Installation
 
@@ -44,73 +46,93 @@ Send IRC notifications to external services like Pushover when you're away or me
 
 ## Configuration
 
-### Quick Start
+### Quick Start (Interactive Setup)
 
-1. In TheLounge, type in any channel:
-   ```
-   /notify setup pushover
-   ```
+The easiest way to configure the plugin is directly from IRC:
 
-2. This will show you the configuration file path. Create or edit the file:
-   ```bash
-   nano ~/.thelounge/packages/node_modules/thelounge-plugin-external-notify/storage/your-username-config.json
+1. In any TheLounge channel, configure your Pushover credentials:
+   ```
+   /notify config pushover userKey YOUR_30_CHARACTER_USER_KEY
+   /notify config pushover apiToken YOUR_30_CHARACTER_API_TOKEN
    ```
 
-3. Add your Pushover credentials:
-   ```json
-   {
-     "enabled": true,
-     "services": {
-       "pushover": {
-         "userKey": "your-30-character-user-key-here",
-         "apiToken": "your-30-character-api-token-here",
-         "priority": 0,
-         "sound": "pushover"
-       }
-     },
-     "filters": {
-       "onlyWhenAway": true,
-       "highlights": true,
-       "keywords": [],
-       "channels": {
-         "whitelist": [],
-         "blacklist": []
-       }
-     }
-   }
-   ```
-
-4. Enable notifications:
+2. Enable notifications:
    ```
    /notify enable
    ```
 
-5. Test it:
+3. Test it:
    ```
    /notify test
    ```
+
+That's it! The configuration is automatically saved to your user config file.
+
+### Alternative: Manual Configuration
+
+If you prefer to edit the config file directly, you can also manually add the configuration to your network object in `~/.thelounge/users/<username>/<network>.json`:
+
+```json
+{
+  "externalNotify": {
+    "enabled": true,
+    "services": {
+      "pushover": {
+        "enabled": true,
+        "userKey": "your-30-character-user-key-here",
+        "apiToken": "your-30-character-api-token-here",
+        "priority": 0,
+        "sound": "pushover"
+      }
+    },
+    "filters": {
+      "onlyWhenAway": true,
+      "highlights": true
+    }
+  }
+}
+```
+
+### Interactive Configuration Commands
+
+You can configure all settings from within IRC using the `/notify config` command:
+
+#### Pushover Settings
+```
+/notify config pushover userKey YOUR_USER_KEY
+/notify config pushover apiToken YOUR_API_TOKEN
+/notify config pushover priority 0           # -2 to 2
+/notify config pushover sound cosmic         # Any Pushover sound
+```
+
+#### Filter Settings
+```
+/notify config filter onlyWhenAway true      # true or false
+/notify config filter highlights true        # true or false
+```
+
+All changes are automatically saved to your user configuration file.
 
 ### Configuration Options
 
 #### Pushover Settings
 
-- **userKey**: Your 30-character Pushover user key
-- **apiToken**: Your 30-character Pushover API token
-- **priority**: Notification priority (-2 to 2)
+- **userKey**: Your 30-character Pushover user key (required)
+- **apiToken**: Your 30-character Pushover API token (required)
+- **priority**: Notification priority (-2 to 2, default: 0)
   - `-2`: No notification, just badge update
   - `-1`: Quiet notification
   - `0`: Normal priority (default)
   - `1`: High priority, bypasses quiet hours
   - `2`: Emergency priority, requires acknowledgment
-- **sound**: Notification sound (see [Pushover sounds](https://pushover.net/api#sounds))
+- **sound**: Notification sound (default: "pushover", see [Pushover sounds](https://pushover.net/api#sounds))
 
 #### Filter Settings
 
 - **onlyWhenAway**: Only send notifications when marked as away (default: `true`)
 - **highlights**: Notify when your nickname is mentioned (default: `true`)
-- **keywords**: Array of keywords to trigger notifications (default: `[]`)
-- **channels.whitelist**: Only notify for these channels (default: all channels)
-- **channels.blacklist**: Never notify for these channels (default: none)
+
+**Note**: TheLounge has built-in highlight configuration in Settings > Highlights. This plugin respects those settings when determining what triggers a notification.
 
 ## Usage
 
@@ -122,16 +144,9 @@ All commands are used with `/notify` in any channel or private message.
 /notify status              Show current configuration and status
 /notify enable              Enable notifications
 /notify disable             Disable notifications
+/notify config              Configure settings interactively
 /notify test                Send a test notification
 /notify help                Show help message
-```
-
-### Managing Keywords
-
-```
-/notify add-keyword urgent          Add "urgent" as a notification keyword
-/notify add-keyword deploy failed   Add "deploy failed" as a keyword phrase
-/notify remove-keyword urgent       Remove a keyword
 ```
 
 ### Setup Commands
@@ -142,13 +157,14 @@ All commands are used with `/notify` in any channel or private message.
 
 ## Example Configurations
 
-### Minimal - Only Highlights
+### Minimal - Only Highlights When Away
 
 ```json
 {
   "enabled": true,
   "services": {
     "pushover": {
+      "enabled": true,
       "userKey": "your-user-key",
       "apiToken": "your-api-token",
       "priority": 0,
@@ -157,23 +173,19 @@ All commands are used with `/notify` in any channel or private message.
   },
   "filters": {
     "onlyWhenAway": true,
-    "highlights": true,
-    "keywords": [],
-    "channels": {
-      "whitelist": [],
-      "blacklist": []
-    }
+    "highlights": true
   }
 }
 ```
 
-### Keywords Only - Monitor Specific Terms
+### Always Notify on Highlights
 
 ```json
 {
   "enabled": true,
   "services": {
     "pushover": {
+      "enabled": true,
       "userKey": "your-user-key",
       "apiToken": "your-api-token",
       "priority": 1,
@@ -182,23 +194,19 @@ All commands are used with `/notify` in any channel or private message.
   },
   "filters": {
     "onlyWhenAway": false,
-    "highlights": false,
-    "keywords": ["production down", "urgent", "emergency", "deploy"],
-    "channels": {
-      "whitelist": ["#ops", "#alerts"],
-      "blacklist": []
-    }
+    "highlights": true
   }
 }
 ```
 
-### Everything - All Messages Always
+### Quiet Notifications
 
 ```json
 {
   "enabled": true,
   "services": {
     "pushover": {
+      "enabled": true,
       "userKey": "your-user-key",
       "apiToken": "your-api-token",
       "priority": -1,
@@ -206,13 +214,8 @@ All commands are used with `/notify` in any channel or private message.
     }
   },
   "filters": {
-    "onlyWhenAway": false,
-    "highlights": true,
-    "keywords": [],
-    "channels": {
-      "whitelist": [],
-      "blacklist": ["#spam", "#bots"]
-    }
+    "onlyWhenAway": true,
+    "highlights": true
   }
 }
 ```
@@ -238,14 +241,14 @@ All commands are used with `/notify` in any channel or private message.
    /notify test
    ```
 
-### Configuration file location
+### Configuration location
 
-The configuration file is stored at:
+The configuration is stored in your TheLounge user config file:
 ```
-~/.thelounge/packages/node_modules/thelounge-plugin-external-notify/storage/<username>-config.json
+~/.thelounge/users/<username>/<network>.json
 ```
 
-Replace `<username>` with your TheLounge username.
+Look for the `externalNotify` property. Replace `<username>` and `<network>` with your TheLounge username and network name.
 
 ### Invalid Pushover credentials
 
@@ -258,8 +261,17 @@ Replace `<username>` with your TheLounge username.
 
 Adjust your filters:
 - Set `onlyWhenAway: true` to only notify when away
-- Use channel whitelist to limit which channels trigger notifications
-- Remove broad keywords that match too often
+- Disable notifications when you're actively using IRC
+
+### Highlight Detection
+
+This plugin uses TheLounge's built-in highlight detection. To customize what triggers highlights:
+
+1. Go to Settings (gear icon in TheLounge)
+2. Navigate to "Highlights"
+3. Add custom highlight words/patterns
+
+The plugin will send notifications for any message that TheLounge marks as a highlight.
 
 ## Development
 
@@ -273,11 +285,18 @@ thelounge-plugin-external-notify/
 │   ├── commands.js              # Command implementations
 │   ├── config-manager.js        # Configuration handling
 │   ├── notification-manager.js  # Notification routing logic
+│   ├── format.js                # Message formatting utilities
+│   ├── message.js               # Message sending utility
 │   └── notifiers/
 │       ├── base.js             # Abstract notifier interface
-│       └── pushover.js         # Pushover implementation
+│       ├── pushover.js         # Pushover implementation
+│       └── example.js          # Example notifier template
 └── test/
-    └── (tests coming soon)
+    ├── config-manager.test.js
+    ├── notification-manager.test.js
+    ├── pushover.test.js
+    ├── integration.test.js
+    └── simple.test.js
 ```
 
 ### Adding New Notifiers
@@ -285,9 +304,40 @@ thelounge-plugin-external-notify/
 To add support for a new service:
 
 1. Create `lib/notifiers/yourservice.js` extending `BaseNotifier`
-2. Implement `send()`, `validate()`, and `getName()` methods
-3. Add initialization in `lib/notification-manager.js`
-4. Update configuration schema in README
+2. Implement required methods:
+   - `constructor()` - Set up registerVariables with required/optional fields
+   - Define defaults for optional fields
+   - Let BaseNotifier handle validation
+3. The plugin will automatically:
+   - Load your notifier when configured
+   - Validate configuration using your registerVariables
+   - Apply defaults for optional fields
+
+See `lib/notifiers/pushover.js` for a complete example.
+
+### Design Philosophy
+
+**Service-Agnostic Architecture:**
+- Core infrastructure (`config-manager.js`, `notification-manager.js`) knows nothing about specific services
+- Each notifier (`lib/notifiers/*.js`) manages its own:
+  - Configuration schema (via `registerVariables`)
+  - Validation logic (via `validate()`)
+  - Default values for optional fields
+  - API integration
+
+**Benefits:**
+- Easy to add new notification services
+- No service-specific code in core files
+- Each service is self-contained and maintainable
+
+## Testing
+
+Run the test suite:
+```bash
+npm test
+```
+
+See `TESTING.md` for detailed testing instructions.
 
 ## License
 

@@ -40,8 +40,8 @@ describe("NotificationManager", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: {
 						whitelist: [],
 						blacklist: []
@@ -52,14 +52,18 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
 				channel: "#test",
 				nick: "bob",
-				message: "hey testuser, how are you?"
+				message: "hey testuser, how are you?",
+				highlight: true // TheLounge sets this
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(true);
@@ -69,8 +73,8 @@ describe("NotificationManager", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: {
 						whitelist: [],
 						blacklist: []
@@ -81,25 +85,29 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
 				channel: "#test",
 				nick: "bob",
-				message: "hello world"
+				message: "just a regular message",
+				highlight: false
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(false);
 		});
 
-		it("should notify on keyword match", function() {
+		it("should not notify when highlights disabled", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: false,
-					keywords: ["urgent", "deploy"],
 					channels: {
 						whitelist: [],
 						blacklist: []
@@ -110,56 +118,31 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "#ops",
-				nick: "alice",
-				message: "urgent: production is down"
-			};
-
-			const client = { name: "testuser" };
-
-			const result = notificationManager.shouldNotify(messageData, client);
-			expect(result).to.equal(true);
-		});
-
-		it("should not notify on keyword mismatch", function() {
-			const config = {
-				services: {},
-				filters: {
-					highlights: false,
-					keywords: ["urgent", "deploy"],
-					channels: {
-						whitelist: [],
-						blacklist: []
-					}
-				}
-			};
-
-			notificationManager = new NotificationManager(config, mockLogger);
-
-			const messageData = {
-				type: "privmsg",
-				network: "freenode",
-				channel: "#general",
+				channel: "#test",
 				nick: "bob",
-				message: "just chatting"
+				message: "hey testuser",
+				highlight: true
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(false);
 		});
 
-		it("should respect channel whitelist", function() {
+		it.skip("should respect channel whitelist (removed)", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: {
-						whitelist: ["#alerts", "#ops"],
+						whitelist: ["#allowed"],
 						blacklist: []
 					}
 				}
@@ -168,14 +151,18 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "#general",
+				channel: "#other",
 				nick: "bob",
-				message: "hey testuser"
+				message: "hey testuser",
+				highlight: true
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(false);
@@ -185,10 +172,10 @@ describe("NotificationManager", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: {
-						whitelist: ["#alerts", "#ops"],
+						whitelist: ["#allowed"],
 						blacklist: []
 					}
 				}
@@ -197,28 +184,32 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "#alerts",
+				channel: "#allowed",
 				nick: "bob",
-				message: "hey testuser"
+				message: "hey testuser",
+				highlight: true
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(true);
 		});
 
-		it("should respect channel blacklist", function() {
+		it.skip("should respect channel blacklist (removed)", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: {
 						whitelist: [],
-						blacklist: ["#spam", "#bots"]
+						blacklist: ["#blocked"]
 					}
 				}
 			};
@@ -226,14 +217,18 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "#spam",
+				channel: "#blocked",
 				nick: "bob",
-				message: "hey testuser"
+				message: "hey testuser",
+				highlight: true
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(false);
@@ -243,11 +238,11 @@ describe("NotificationManager", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: {
 						whitelist: [],
-						blacklist: ["#spam", "#bots"]
+						blacklist: ["#blocked"]
 					}
 				}
 			};
@@ -255,25 +250,29 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "#general",
+				channel: "#allowed",
 				nick: "bob",
-				message: "hey testuser"
+				message: "hey testuser",
+				highlight: true
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
 			expect(result).to.equal(true);
 		});
 
-		it("should match keywords case-insensitively", function() {
+		it("should respect onlyWhenAway filter", function() {
 			const config = {
 				services: {},
 				filters: {
-					highlights: false,
-					keywords: ["urgent"],
+					onlyWhenAway: true,
+					highlights: true,
 					channels: {
 						whitelist: [],
 						blacklist: []
@@ -284,25 +283,30 @@ describe("NotificationManager", function() {
 			notificationManager = new NotificationManager(config, mockLogger);
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "#ops",
-				nick: "alice",
-				message: "URGENT: check this out"
+				channel: "#test",
+				nick: "bob",
+				message: "hey testuser",
+				highlight: true
 			};
 
-			const client = { name: "testuser" };
+			// User is not away
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
 			const result = notificationManager.shouldNotify(messageData, client);
-			expect(result).to.equal(true);
+			expect(result).to.equal(false);
 		});
 
-		it("should notify on either highlight OR keyword match", function() {
+		it("should notify when away if onlyWhenAway enabled", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: true,
 					highlights: true,
-					keywords: ["deploy"],
 					channels: {
 						whitelist: [],
 						blacklist: []
@@ -312,50 +316,44 @@ describe("NotificationManager", function() {
 
 			notificationManager = new NotificationManager(config, mockLogger);
 
-			// Test highlight
-			let messageData = {
-				type: "privmsg",
+			const messageData = {
+				type: "message",
 				network: "freenode",
-				channel: "#general",
-				nick: "alice",
-				message: "testuser: hello"
-			};
-
-			let client = { name: "testuser" };
-			expect(notificationManager.shouldNotify(messageData, client)).to.equal(true);
-
-			// Test keyword
-			messageData = {
-				type: "privmsg",
-				network: "freenode",
-				channel: "#ops",
+				channel: "#test",
 				nick: "bob",
-				message: "deploy finished successfully"
+				message: "hey testuser",
+				highlight: true
 			};
 
-			expect(notificationManager.shouldNotify(messageData, client)).to.equal(true);
+			// User is away
+			const client = {
+				name: "testuser",
+				user: { away: true }
+			};
+
+			const result = notificationManager.shouldNotify(messageData, client);
+			expect(result).to.equal(true);
 		});
 	});
 
 	describe("formatNotification()", function() {
-		beforeEach(function() {
+		it("should format regular messages", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: { whitelist: [], blacklist: [] }
 				}
 			};
-			notificationManager = new NotificationManager(config, mockLogger);
-		});
 
-		it("should format regular messages", function() {
+			notificationManager = new NotificationManager(config, mockLogger);
+
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
 				channel: "#test",
-				nick: "alice",
+				nick: "bob",
 				message: "hello world",
 				timestamp: new Date()
 			};
@@ -363,10 +361,21 @@ describe("NotificationManager", function() {
 			const notification = notificationManager.formatNotification(messageData);
 
 			expect(notification.title).to.equal("freenode - #test");
-			expect(notification.message).to.equal("<alice> hello world");
+			expect(notification.message).to.equal("<bob> hello world");
 		});
 
 		it("should format action messages", function() {
+			const config = {
+				services: {},
+				filters: {
+					onlyWhenAway: false,
+					highlights: true,
+					channels: { whitelist: [], blacklist: [] }
+				}
+			};
+
+			notificationManager = new NotificationManager(config, mockLogger);
+
 			const messageData = {
 				type: "action",
 				network: "freenode",
@@ -383,11 +392,22 @@ describe("NotificationManager", function() {
 		});
 
 		it("should format private messages without channel", function() {
+			const config = {
+				services: {},
+				filters: {
+					onlyWhenAway: false,
+					highlights: true,
+					channels: { whitelist: [], blacklist: [] }
+				}
+			};
+
+			notificationManager = new NotificationManager(config, mockLogger);
+
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
-				channel: "alice",
-				nick: "alice",
+				channel: "bob", // PM uses nick as channel
+				nick: "bob",
 				message: "private message",
 				timestamp: new Date()
 			};
@@ -395,28 +415,27 @@ describe("NotificationManager", function() {
 			const notification = notificationManager.formatNotification(messageData);
 
 			expect(notification.title).to.equal("freenode");
-			expect(notification.message).to.equal("<alice> private message");
+			expect(notification.message).to.equal("<bob> private message");
 		});
 	});
 
 	describe("getDeduplicationKey()", function() {
-		beforeEach(function() {
+		it("should generate consistent keys for same message", function() {
 			const config = {
 				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: { whitelist: [], blacklist: [] }
 				}
 			};
-			notificationManager = new NotificationManager(config, mockLogger);
-		});
 
-		it("should generate consistent keys for same message", function() {
+			notificationManager = new NotificationManager(config, mockLogger);
+
 			const messageData = {
 				network: "freenode",
 				channel: "#test",
-				nick: "alice",
+				nick: "bob",
 				message: "hello world"
 			};
 
@@ -427,10 +446,21 @@ describe("NotificationManager", function() {
 		});
 
 		it("should generate different keys for different messages", function() {
+			const config = {
+				services: {},
+				filters: {
+					onlyWhenAway: false,
+					highlights: true,
+					channels: { whitelist: [], blacklist: [] }
+				}
+			};
+
+			notificationManager = new NotificationManager(config, mockLogger);
+
 			const messageData1 = {
 				network: "freenode",
 				channel: "#test",
-				nick: "alice",
+				nick: "bob",
 				message: "hello world"
 			};
 
@@ -438,7 +468,7 @@ describe("NotificationManager", function() {
 				network: "freenode",
 				channel: "#test",
 				nick: "bob",
-				message: "hello world"
+				message: "goodbye world"
 			};
 
 			const key1 = notificationManager.getDeduplicationKey(messageData1);
@@ -451,10 +481,10 @@ describe("NotificationManager", function() {
 	describe("processMessage()", function() {
 		it("should send notification for valid message", async function() {
 			const config = {
-				services: { mock: {} },
+				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
 					channels: { whitelist: [], blacklist: [] }
 				}
 			};
@@ -463,60 +493,32 @@ describe("NotificationManager", function() {
 			notificationManager.notifiers.mock = mockNotifier;
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
 				channel: "#test",
-				nick: "alice",
+				nick: "bob",
 				message: "hey testuser",
+				highlight: true,
 				timestamp: new Date()
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
-			await notificationManager.processMessage(messageData, client);
+			const result = await notificationManager.processMessage(messageData, client);
 
-			expect(mockNotifier.sentNotifications).to.have.lengthOf(1);
-			expect(mockNotifier.sentNotifications[0].title).to.equal("freenode - #test");
+			expect(mockNotifier.sentNotifications).to.have.length(1);
+			expect(result.services).to.include("mock");
 		});
 
 		it("should not send notification for filtered message", async function() {
 			const config = {
-				services: { mock: {} },
+				services: {},
 				filters: {
+					onlyWhenAway: false,
 					highlights: true,
-					keywords: [],
-					channels: {
-						whitelist: ["#alerts"],
-						blacklist: []
-					}
-				}
-			};
-
-			notificationManager = new NotificationManager(config, mockLogger);
-			notificationManager.notifiers.mock = mockNotifier;
-
-			const messageData = {
-				type: "privmsg",
-				network: "freenode",
-				channel: "#general",
-				nick: "alice",
-				message: "hey testuser",
-				timestamp: new Date()
-			};
-
-			const client = { name: "testuser" };
-
-			await notificationManager.processMessage(messageData, client);
-
-			expect(mockNotifier.sentNotifications).to.have.lengthOf(0);
-		});
-
-		it("should deduplicate identical messages", async function() {
-			const config = {
-				services: { mock: {} },
-				filters: {
-					highlights: true,
-					keywords: [],
 					channels: { whitelist: [], blacklist: [] }
 				}
 			};
@@ -525,21 +527,62 @@ describe("NotificationManager", function() {
 			notificationManager.notifiers.mock = mockNotifier;
 
 			const messageData = {
-				type: "privmsg",
+				type: "message",
 				network: "freenode",
 				channel: "#test",
-				nick: "alice",
-				message: "hey testuser",
+				nick: "bob",
+				message: "regular message",
+				highlight: false,
 				timestamp: new Date()
 			};
 
-			const client = { name: "testuser" };
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
 
-			await notificationManager.processMessage(messageData, client);
+			const result = await notificationManager.processMessage(messageData, client);
+
+			expect(result).to.equal(null);
+			expect(mockNotifier.sentNotifications).to.have.length(0);
+		});
+
+		it("should deduplicate identical messages", async function() {
+			const config = {
+				services: {},
+				filters: {
+					onlyWhenAway: false,
+					highlights: true,
+					channels: { whitelist: [], blacklist: [] }
+				}
+			};
+
+			notificationManager = new NotificationManager(config, mockLogger);
+			notificationManager.notifiers.mock = mockNotifier;
+
+			const messageData = {
+				type: "message",
+				network: "freenode",
+				channel: "#test",
+				nick: "bob",
+				message: "hey testuser",
+				highlight: true,
+				timestamp: new Date()
+			};
+
+			const client = {
+				name: "testuser",
+				user: { away: false }
+			};
+
+			// Send first message
 			await notificationManager.processMessage(messageData, client);
 
-			// Should only send once due to deduplication
-			expect(mockNotifier.sentNotifications).to.have.lengthOf(1);
+			// Try to send same message again
+			await notificationManager.processMessage(messageData, client);
+
+			// Should only send once
+			expect(mockNotifier.sentNotifications).to.have.length(1);
 		});
 	});
 });

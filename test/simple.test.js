@@ -86,13 +86,13 @@ describe('External Notify Plugin Basic Tests', function() {
 		expect(content).to.include('allowDisconnected');
 	});
 
-	it('should use persistent storage', function() {
+	it('should store config in network objects', function() {
 		const indexPath = path.join(__dirname, '../index.js');
 		const content = fs.readFileSync(indexPath, 'utf8');
 
-		// Check that plugin uses persistent storage
-		expect(content).to.include('getPersistentStorageDir');
-		expect(content).to.include('storageDir');
+		// Check that plugin uses network objects for config storage
+		expect(content).to.include('ConfigManager');
+		expect(content).to.include('network');
 	});
 
 	it('should have proper README documentation', function() {
@@ -119,8 +119,6 @@ describe('External Notify Plugin Basic Tests', function() {
 		expect(content).to.have.property('services');
 		expect(content).to.have.property('filters');
 		expect(content.services).to.have.property('pushover');
-		expect(content.filters).to.have.property('keywords');
-		expect(content.filters).to.have.property('channels');
 	});
 
 	it('should have config manager class', function() {
@@ -150,7 +148,7 @@ describe('External Notify Plugin Basic Tests', function() {
 		expect(content).to.include('class BaseNotifier');
 		expect(content).to.include('send(');
 		expect(content).to.include('validate');
-		expect(content).to.include('getName');
+		expect(content).to.include('get name');
 	});
 
 	it('should have pushover notifier implementation', function() {
