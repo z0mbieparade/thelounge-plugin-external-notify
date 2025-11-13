@@ -15,11 +15,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://git.z0m.bi/z0mbi/thelounge-plugin-external-notify.git"
+    "url": "https://github.com/z0mbieparade/thelounge-plugin-external-notify.git"
   },
-  "homepage": "https://git.z0m.bi/z0mbi/thelounge-plugin-external-notify#readme",
+  "homepage": "https://github.com/z0mbieparade/thelounge-plugin-external-notify#readme",
   "bugs": {
-    "url": "https://git.z0m.bi/z0mbi/thelounge-plugin-external-notify/issues"
+    "url": "https://github.com/z0mbieparade/thelounge-plugin-external-notify/issues"
   },
   "thelounge": {
     "name": "External Notify",
