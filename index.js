@@ -305,8 +305,28 @@ module.exports = {
 		apiInstance = api;
 
 		// Get plugin storage directory
-		storageDir = api.Config.getPersistentStorageDir();
+		storageDir = api.Config.getPersistentStorageDir("thelounge-plugin-external-notify");
 		api.Logger.info(`External Notify plugin loaded, using storage: ${storageDir}`);
+
+		// Verify storage directory is writable
+		const fs = require("fs");
+		const path = require("path");
+		try {
+			if (!fs.existsSync(storageDir)) {
+				fs.mkdirSync(storageDir, { recursive: true });
+				api.Logger.info(`Created storage directory: ${storageDir}`);
+			}
+
+			// Test write permissions
+			const testFile = path.join(storageDir, '.write-test');
+			fs.writeFileSync(testFile, 'test', 'utf8');
+			fs.unlinkSync(testFile);
+			api.Logger.info(`Storage directory is writable`);
+		} catch (err) {
+			api.Logger.error(`Storage directory is NOT writable: ${err.message}`);
+			api.Logger.error(`This will prevent configuration from being saved!`);
+			api.Logger.error(`Check Docker volume permissions for: ${storageDir}`);
+		}
 
 		// Register the /notify command
 		const commands = require("./lib/commands");
